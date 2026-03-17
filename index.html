@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>PDF Merge</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced PDF Merge</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,600&display=swap" rel="stylesheet">
   <style>
@@ -31,18 +32,14 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       padding: 40px 20px;
     }
 
-    /* Subtle grid background */
     body::before {
       content: '';
       position: fixed;
       inset: 0;
-      background-image:
-        linear-gradient(var(--border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
       background-size: 40px 40px;
       opacity: 0.3;
       pointer-events: none;
@@ -53,406 +50,191 @@
       position: relative;
       z-index: 1;
       width: 100%;
-      max-width: 520px;
+      max-width: 800px;
       display: flex;
       flex-direction: column;
       gap: 24px;
     }
 
-    header {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+    header { display: flex; justify-content: space-between; align-items: flex-end; }
+    h1 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 2rem; color: var(--text); }
+    .subtitle { font-size: 0.75rem; color: var(--muted); }
+
+    .controls { display: flex; gap: 10px; }
+    .btn {
+      background: var(--surface); color: var(--text); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 18px; font-family: 'DM Mono', monospace;
+      font-size: 0.8rem; cursor: pointer; transition: border-color 0.15s;
+    }
+    .btn:hover { border-color: var(--accent); }
+    .btn-primary { background: var(--accent); color: #0e0e0e; font-weight: 500; border: none; }
+    .btn-primary:hover { opacity: 0.88; }
+    #fileInput { display: none; }
+
+    #stack-container {
+      display: none; text-align: center; padding: 20px; border: 1px dashed var(--accent);
+      border-radius: var(--radius); background: #1a1f0e; margin-bottom: 20px;
+    }
+    .stack {
+      display: inline-flex; align-items: center; justify-content: center; width: 4cm; height: 5.6cm;
+      background: var(--surface); border: 1px solid var(--border-active); cursor: grab;
+      box-shadow: 4px 4px 0px var(--border), 8px 8px 0px #111; color: var(--muted); font-size: 0.8rem;
     }
 
-    .logo {
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
+    #grid {
+      display: flex; flex-wrap: wrap; gap: 16px; min-height: 200px; padding: 24px;
+      border: 1px dashed var(--border); border-radius: var(--radius); background: var(--surface);
     }
-
-    h1 {
-      font-family: 'Fraunces', serif;
-      font-weight: 600;
-      font-size: 2rem;
-      letter-spacing: -0.02em;
-      color: var(--text);
+    .page-item {
+      width: 4cm; height: 5.6cm; background: #fff; position: relative; cursor: grab;
+      border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden;
     }
+    .page-item canvas { width: 100%; height: 100%; object-fit: cover; }
+    .page-item.drag-over { border: 2px dashed var(--accent); opacity: 0.5; }
 
-    .badge {
-      font-size: 0.65rem;
-      font-family: 'DM Mono', monospace;
-      color: var(--accent);
-      border: 1px solid var(--accent-dim);
-      padding: 2px 7px;
-      border-radius: 99px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      position: relative;
-      top: -2px;
+    .delete-btn {
+      position: absolute; top: 6px; right: 6px; background: var(--danger); color: #111;
+      border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer;
+      display: none; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; padding: 0; line-height: 1;
     }
-
-    .subtitle {
-      font-size: 0.75rem;
-      color: var(--muted);
-      letter-spacing: 0.03em;
-    }
-
-    .slots {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .slot {
-      border: 1px dashed var(--border);
-      border-radius: var(--radius);
-      background: var(--surface);
-      padding: 18px 20px;
-      cursor: pointer;
-      transition: border-color 0.15s, background 0.15s;
-      position: relative;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      min-height: 72px;
-    }
-
-    .slot:hover {
-      border-color: var(--border-active);
-      background: #1c1c1c;
-    }
-
-    .slot.drag-over {
-      border-color: var(--accent);
-      background: #1a1f0e;
-    }
-
-    .slot.filled {
-      border-style: solid;
-      border-color: var(--border-active);
-    }
-
-    .slot input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-      width: 100%;
-      height: 100%;
-    }
-
-    .slot-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      font-size: 1rem;
-      transition: border-color 0.15s;
-    }
-
-    .slot.filled .slot-icon {
-      border-color: var(--accent-dim);
-      background: #1a1f0e;
-    }
-
-    .slot-label {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .slot-number {
-      font-size: 0.65rem;
-      color: var(--muted);
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .slot-name {
-      font-size: 0.8rem;
-      color: var(--muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .slot.filled .slot-name {
-      color: var(--text);
-    }
-
-    .slot-size {
-      font-size: 0.65rem;
-      color: var(--muted);
-    }
-
-    .slot-clear {
-      position: relative;
-      z-index: 2;
-      background: none;
-      border: none;
-      color: var(--muted);
-      cursor: pointer;
-      font-size: 1rem;
-      padding: 4px;
-      flex-shrink: 0;
-      line-height: 1;
-      transition: color 0.1s;
-    }
-
-    .slot-clear:hover { color: var(--danger); }
-
-    .connector {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      font-size: 0.65rem;
-      color: var(--muted);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-
-    .connector::before, .connector::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
-    .merge-btn {
-      background: var(--accent);
-      color: #0e0e0e;
-      border: none;
-      border-radius: var(--radius);
-      padding: 15px 24px;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.8rem;
-      font-weight: 500;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
-      width: 100%;
-    }
-
-    .merge-btn:hover:not(:disabled) {
-      opacity: 0.88;
-    }
-
-    .merge-btn:active:not(:disabled) {
-      transform: scale(0.98);
-    }
-
-    .merge-btn:disabled {
-      opacity: 0.25;
-      cursor: not-allowed;
-    }
-
-    .status {
-      font-size: 0.72rem;
-      text-align: center;
-      min-height: 1.2em;
-      letter-spacing: 0.03em;
-      transition: color 0.2s;
-    }
-
-    .status.idle { color: transparent; }
-    .status.working { color: var(--muted); }
-    .status.success { color: var(--accent); }
-    .status.error { color: var(--danger); }
-
-    footer {
-      text-align: center;
-      font-size: 0.65rem;
-      color: #333;
-      letter-spacing: 0.05em;
-    }
-
-    /* Spinner */
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border: 1.5px solid var(--muted);
-      border-top-color: transparent;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      margin-right: 6px;
-      vertical-align: middle;
-    }
+    .page-item:hover .delete-btn { display: flex; }
   </style>
 </head>
 <body>
 
 <div class="container">
   <header>
-    <div class="logo">
+    <div>
       <h1>PDF Merge</h1>
-      <span class="badge">client-side</span>
+      <p class="subtitle">Arrange, delete, and combine offline.</p>
     </div>
-    <p class="subtitle">Files never leave your browser. No server, no upload.</p>
+    <div class="controls">
+      <label class="btn">
+        Load PDF <input type="file" id="fileInput" accept="application/pdf">
+      </label>
+      <button class="btn btn-primary" onclick="exportPDF()">Export</button>
+    </div>
   </header>
 
-  <div class="slots">
-    <!-- Slot A -->
-    <div class="slot" id="slotA" ondragover="handleDragOver(event,'A')" ondragleave="handleDragLeave('A')" ondrop="handleDrop(event,'A')">
-      <input type="file" accept=".pdf,application/pdf" onchange="handleFile(event,'A')" id="inputA">
-      <div class="slot-icon" id="iconA">📄</div>
-      <div class="slot-label">
-        <span class="slot-number">First PDF</span>
-        <span class="slot-name" id="nameA">Click or drag to select…</span>
-        <span class="slot-size" id="sizeA"></span>
-      </div>
-      <button class="slot-clear" id="clearA" style="display:none" onclick="clearSlot('A')">✕</button>
-    </div>
-
-    <div class="connector">then</div>
-
-    <!-- Slot B -->
-    <div class="slot" id="slotB" ondragover="handleDragOver(event,'B')" ondragleave="handleDragLeave('B')" ondrop="handleDrop(event,'B')">
-      <input type="file" accept=".pdf,application/pdf" onchange="handleFile(event,'B')" id="inputB">
-      <div class="slot-icon" id="iconB">📄</div>
-      <div class="slot-label">
-        <span class="slot-number">Second PDF</span>
-        <span class="slot-name" id="nameB">Click or drag to select…</span>
-        <span class="slot-size" id="sizeB"></span>
-      </div>
-      <button class="slot-clear" id="clearB" style="display:none" onclick="clearSlot('B')">✕</button>
-    </div>
+  <div id="stack-container">
+    <p class="subtitle" style="margin-bottom: 12px; color: var(--text);">New PDF loaded. Drag the stack into the grid below.</p>
+    <div class="stack" draggable="true" id="pdf-stack">Stack</div>
   </div>
 
-  <button class="merge-btn" id="mergeBtn" onclick="merge()" disabled>
-    Merge & Download
-  </button>
-
-  <div class="status idle" id="status"></div>
-
-  <footer>no data sent anywhere · works offline · open source via pdf-lib</footer>
+  <div id="grid"></div>
 </div>
 
 <script>
-  const files = { A: null, B: null };
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  
+  let mainPages = []; 
+  let stackPages = [];
+  let draggedElementId = null;
 
-  function fmt(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  }
-
-  function setStatus(msg, type = 'idle') {
-    const el = document.getElementById('status');
-    el.className = 'status ' + type;
-    el.innerHTML = msg;
-  }
-
-  function updateSlot(id, file) {
-    files[id] = file;
-    const slot  = document.getElementById('slot' + id);
-    const name  = document.getElementById('name' + id);
-    const size  = document.getElementById('size' + id);
-    const clear = document.getElementById('clear' + id);
-    const icon  = document.getElementById('icon' + id);
-
-    if (file) {
-      name.textContent  = file.name;
-      size.textContent  = fmt(file.size);
-      clear.style.display = 'block';
-      slot.classList.add('filled');
-      icon.textContent  = '📋';
-    } else {
-      const label = id === 'A' ? 'First PDF' : 'Second PDF';
-      name.textContent  = 'Click or drag to select…';
-      size.textContent  = '';
-      clear.style.display = 'none';
-      slot.classList.remove('filled');
-      icon.textContent  = '📄';
-      // reset file input
-      document.getElementById('input' + id).value = '';
-    }
-
-    document.getElementById('mergeBtn').disabled = !(files.A && files.B);
-    setStatus('', 'idle');
-  }
-
-  function handleFile(e, id) {
+  document.getElementById('fileInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (file) updateSlot(id, file);
-  }
+    if (!file) return;
+    
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfJsDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    
+    let newPages = [];
+    for (let i = 1; i <= pdfJsDoc.numPages; i++) {
+      const page = await pdfJsDoc.getPage(i);
+      const viewport = page.getViewport({ scale: 0.5 });
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      
+      newPages.push({ id: Math.random().toString(36).substr(2, 9), pdfBytes: arrayBuffer, pageIndex: i - 1, canvas: canvas });
+    }
 
-  function clearSlot(id) {
-    event.stopPropagation();
-    updateSlot(id, null);
-  }
-
-  function handleDragOver(e, id) {
-    e.preventDefault();
-    document.getElementById('slot' + id).classList.add('drag-over');
-  }
-
-  function handleDragLeave(id) {
-    document.getElementById('slot' + id).classList.remove('drag-over');
-  }
-
-  function handleDrop(e, id) {
-    e.preventDefault();
-    document.getElementById('slot' + id).classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type === 'application/pdf') {
-      updateSlot(id, file);
+    if (mainPages.length === 0) {
+      mainPages = newPages;
+      renderGrid();
     } else {
-      setStatus('Please drop a PDF file.', 'error');
+      stackPages = newPages;
+      document.getElementById('stack-container').style.display = 'block';
+      document.getElementById('pdf-stack').textContent = `Stack (${newPages.length} pgs)`;
     }
+    e.target.value = ''; 
+  });
+
+  function renderGrid() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    mainPages.forEach((pageObj, index) => {
+      const div = document.createElement('div');
+      div.className = 'page-item';
+      div.draggable = true;
+      div.dataset.id = pageObj.id;
+      div.appendChild(pageObj.canvas);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'delete-btn';
+      delBtn.innerHTML = '✕';
+      delBtn.onclick = () => { mainPages.splice(index, 1); renderGrid(); };
+      div.appendChild(delBtn);
+
+      div.addEventListener('dragstart', () => { draggedElementId = pageObj.id; });
+      div.addEventListener('dragover', (e) => { e.preventDefault(); div.classList.add('drag-over'); });
+      div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
+      div.addEventListener('drop', (e) => handleDrop(e, index));
+
+      grid.appendChild(div);
+    });
   }
 
-  async function merge() {
-    if (!files.A || !files.B) return;
+  document.getElementById('pdf-stack').addEventListener('dragstart', () => {
+    draggedElementId = 'STACK';
+  });
 
-    const btn = document.getElementById('mergeBtn');
-    btn.disabled = true;
-    setStatus('<span class="spinner"></span>Merging…', 'working');
+  function handleDrop(e, targetIndex) {
+    e.preventDefault();
+    document.querySelectorAll('.page-item').forEach(el => el.classList.remove('drag-over'));
 
-    try {
-      const [bytesA, bytesB] = await Promise.all([
-        files.A.arrayBuffer(),
-        files.B.arrayBuffer()
-      ]);
-
-      const pdfA   = await PDFLib.PDFDocument.load(bytesA);
-      const pdfB   = await PDFLib.PDFDocument.load(bytesB);
-      const merged = await PDFLib.PDFDocument.create();
-
-      const pagesA = await merged.copyPages(pdfA, pdfA.getPageIndices());
-      const pagesB = await merged.copyPages(pdfB, pdfB.getPageIndices());
-
-      pagesA.forEach(p => merged.addPage(p));
-      pagesB.forEach(p => merged.addPage(p));
-
-      const pdfBytes = await merged.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url  = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href     = url;
-      a.download = 'merged.pdf';
-      a.click();
-      URL.revokeObjectURL(url);
-
-      const total = pdfA.getPageCount() + pdfB.getPageCount();
-      setStatus(`✓ Done — ${total} pages · ${fmt(pdfBytes.length)}`, 'success');
-    } catch (err) {
-      console.error(err);
-      setStatus('Error: ' + (err.message || 'Could not merge PDFs.'), 'error');
-    } finally {
-      btn.disabled = !(files.A && files.B);
+    if (draggedElementId === 'STACK') {
+      mainPages.splice(targetIndex, 0, ...stackPages);
+      stackPages = [];
+      document.getElementById('stack-container').style.display = 'none';
+    } else if (draggedElementId) {
+      const sourceIndex = mainPages.findIndex(p => p.id === draggedElementId);
+      if (sourceIndex > -1 && sourceIndex !== targetIndex) {
+        const [movedItem] = mainPages.splice(sourceIndex, 1);
+        mainPages.splice(targetIndex, 0, movedItem);
+      }
     }
+    draggedElementId = null;
+    renderGrid();
+  }
+
+  document.getElementById('grid').addEventListener('dragover', (e) => e.preventDefault());
+  document.getElementById('grid').addEventListener('drop', (e) => {
+    if (e.target.id === 'grid') handleDrop(e, mainPages.length);
+  });
+
+  async function exportPDF() {
+    if (mainPages.length === 0) return alert('No pages to export.');
+    
+    const mergedPdf = await PDFLib.PDFDocument.create();
+    const loadedDocs = new Map();
+
+    for (const page of mainPages) {
+      if (!loadedDocs.has(page.pdfBytes)) {
+        loadedDocs.set(page.pdfBytes, await PDFLib.PDFDocument.load(page.pdfBytes));
+      }
+      const sourceDoc = loadedDocs.get(page.pdfBytes);
+      const [copiedPage] = await mergedPdf.copyPages(sourceDoc, [page.pageIndex]);
+      mergedPdf.addPage(copiedPage);
+    }
+
+    const pdfBytes = await mergedPdf.save();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'merged.pdf';
+    link.click();
   }
 </script>
 </body>
